@@ -21,7 +21,7 @@ export const findUserByEmailWithPassword = async (email: string) => {
 };
 
 
-export const verifyUserEmail = async (userId: string) => {
+export const verifyuserEmail = async (userId: string) => {
   return await User.findByIdAndUpdate(
     userId,
     {

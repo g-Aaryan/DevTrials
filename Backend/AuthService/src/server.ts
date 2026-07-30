@@ -5,9 +5,12 @@ import v2router from './router/v2/index.router';
 import { genericErrorHandler } from './middlewares/error.middleware';
 import logger from './config/logger.config';
 import { attachCorrelationIdMiddleware } from './middlewares/correlation.middleware';
+import cookieParser from "cookie-parser";
+
 const app = express();
 
 app.use(express.json());
+app.use(cookieParser());
 
 app.use(attachCorrelationIdMiddleware);
 app.use('/api/v1',v1router)

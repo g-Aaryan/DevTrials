@@ -5,6 +5,8 @@ type Serveconfig ={
     REDIS_PORT:number
     DB_URL:string
     OTP_SECRET:string
+    EMAIL_USER:string
+    EMAIL_PASSWORD:string
 }
 
 function loadenv(){
@@ -19,5 +21,7 @@ export const serverconfig:Serveconfig={
     REDIS_HOST:process.env.REDIS_HOST||"localhost",
     REDIS_PORT:Number(process.env.REDIS_PORT)||6379,
     DB_URL:process.env.DB_URL||"mongodb://localhost:27017/lc_auth_userdb",
-    OTP_SECRET:process.env.OTP_SECRET||"default_otp_secret"
+    OTP_SECRET:process.env.OTP_SECRET||"default_otp_secret",
+    EMAIL_USER:process.env.EMAIL_USER||"default_email_user",
+    EMAIL_PASSWORD:process.env.EMAIL_PASSWORD||"default_email_password"
 }
