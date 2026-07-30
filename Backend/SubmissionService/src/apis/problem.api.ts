@@ -1,12 +1,20 @@
+import logger from "../config/logger.config";
+
 const PROBLEM_SERVICE_URL =
   process.env.PROBLEM_SERVICE_URL || "http://localhost:3000";
 
-export const getProblemById = async (
-  problemId: string
-) => {
+export const getProblemById = async (problemId: string) => {
+  logger.info(`Fetching problem with ID: ${problemId} from Problem Service`);
+  
+
+  const url = `${PROBLEM_SERVICE_URL}/api/v1/problem/${problemId}`;
+
+  logger.info(`Constructed URL for Problem Service: ${url}`);
   const response = await fetch(
-    `${PROBLEM_SERVICE_URL}/api/v1/problems/${problemId}`
+    url
   );
+
+  logger.info(`Received response from Problem Service: ${response}`);
 
   if (response.status === 404) {
     return null;

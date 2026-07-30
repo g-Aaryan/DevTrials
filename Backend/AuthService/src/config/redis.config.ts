@@ -1,9 +1,10 @@
 import  Redis from "ioredis";
 import logger from "./logger.config";
+import { serverconfig } from "./index";
 
 const redisConfig = {
-    host: process.env.REDIS_HOST || "localhost",
-    port: Number(process.env.REDIS_PORT) || 6379,
+    host: serverconfig.REDIS_HOST,
+    port: serverconfig.REDIS_PORT,
     maxRetriesPerRequest: null,
 }
 
@@ -17,3 +18,6 @@ redis.on("error", (error) => {
     logger.error("Redis connection error", error);
 });
 
+export const createNewRedisConnection = () => {
+    return new Redis(redisConfig);
+}

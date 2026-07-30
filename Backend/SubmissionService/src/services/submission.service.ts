@@ -4,6 +4,7 @@ import { getProblemById } from "../apis/problem.api";
 import * as submissionRepository from "../repositories/submission.repository";
 import { FilterQuery } from "mongoose";
 import { addSubmissionJob } from "../producers/submission.producer";
+import logger from "../config/logger.config";
 
 
 export const createsubmission = async (submissionData: Partial<ISubmission>)=>{
@@ -18,6 +19,7 @@ export const createsubmission = async (submissionData: Partial<ISubmission>)=>{
             throw new BadRequestError("Language is required");
     }
 
+      logger.info("getting problem by id")
       const problem = await getProblemById(submissionData.problemId);
 
     if (!problem) {throw new Error("Problem not found");}

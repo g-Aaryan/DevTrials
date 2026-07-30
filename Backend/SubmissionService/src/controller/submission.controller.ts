@@ -2,9 +2,11 @@ import { NextFunction,Request,Response } from "express";
 import * as submissionService from "../services/submission.service";
 import { FilterQuery } from "mongoose";
 import { ISubmission } from "../models/submission.model";
+import logger from "../config/logger.config";
 
 export const createSubmission = async (req: Request,res: Response,next: NextFunction) => {
   try {
+    logger.info("Creating submission with data:", req.body);
     const submission = await submissionService.createsubmission(req.body);
     res.status(201).json({
       success: true,
