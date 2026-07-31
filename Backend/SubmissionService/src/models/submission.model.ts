@@ -36,7 +36,7 @@ const submissionSchema = new mongoose.Schema<ISubmission>(
       type: String,
       required: [true, "User ID is required"],
     },
-
+    
     problemId: {
       type: String,
       required: [true, "Problem ID is required"],

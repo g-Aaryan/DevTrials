@@ -3,6 +3,11 @@ import crypto from "crypto";
 
 const JWT_SECRET = process.env.JWT_SECRET!;
 
+interface AccessTokenPayload {
+    userId: string;
+    role: string;
+}
+
 export const generateAccessToken = (
     userId: string,
     role: string
@@ -14,8 +19,13 @@ export const generateAccessToken = (
     );
 };
 
-export const verifyAccessToken = (token: string) => {
-    return jwt.verify(token, JWT_SECRET);
+export const verifyAccessToken = (
+    token: string
+): AccessTokenPayload => {
+    return jwt.verify(
+        token,
+        JWT_SECRET
+    ) as AccessTokenPayload;
 };
 
 export const generateRefreshToken = () => {
