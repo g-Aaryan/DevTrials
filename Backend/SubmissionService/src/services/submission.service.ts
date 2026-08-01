@@ -5,6 +5,7 @@ import * as submissionRepository from "../repositories/submission.repository";
 import { FilterQuery } from "mongoose";
 import { addSubmissionJob } from "../producers/submission.producer";
 import logger from "../config/logger.config";
+import { updateSubmissionVerdict } from "../repositories/submission.repository";
 
 
 export const createsubmission = async (submissionData: Partial<ISubmission>)=>{
@@ -121,3 +122,24 @@ export const updateSubmissionResult = async (
 
   return updatedSubmission;
 };
+
+
+
+export async function updateVerdict(
+    submissionId: string,
+    verdict: ISubmission["verdict"],
+    status: ISubmission["status"]
+) {
+
+    const submission = await updateSubmissionVerdict(
+        submissionId,
+        verdict,
+        status
+    );
+
+    if (!submission) {
+        throw new Error("Submission not found");
+    }
+
+    return submission;
+}

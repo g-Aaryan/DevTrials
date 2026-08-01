@@ -3,6 +3,7 @@ import * as submissionService from "../services/submission.service";
 import { FilterQuery } from "mongoose";
 import { ISubmission } from "../models/submission.model";
 import logger from "../config/logger.config";
+import { updateVerdict } from "../services/submission.service";
 
 export const createSubmission = async (req: Request,res: Response,next: NextFunction) => {
   try {
@@ -93,4 +94,29 @@ export const deleteSubmission = async (req: Request,res: Response,next: NextFunc
     next(error);
   }
 };
+
+export async function updateSubmissionVerdictController(req: Request,res: Response,next: NextFunction){
+    try {
+        const { submissionId } = req.params;
+        const { verdict, status } = req.body;
+
+        console.log(req.params)
+        console.log(`Updating submission ${submissionId} with verdict ${verdict} and status ${status}`);
+
+        const submission = await updateVerdict(
+            submissionId,
+            verdict,
+            status
+        );
+
+        return res.status(200).json({
+            success: true,
+            message: "Submission updated successfully",
+            data: submission
+        });
+
+    } catch (error) {
+        next(error);
+    }
+}
 

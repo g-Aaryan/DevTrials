@@ -7,12 +7,14 @@ import {
   getSubmissionsByUser,
   getSubmissionsByProblem,
   deleteSubmission,
+  updateSubmissionVerdictController,
 } from "../../controller/submission.controller";
 
 import { validateRequestBody } from "../../validators/index";
 
 import {
   createSubmissionSchema,
+  updateSubmissionVerdictSchema,
 } from "../../validators/submission.validator";
 
 
@@ -37,6 +39,8 @@ submissionRouter.get("/:id",getSubmissionById);
 
 // Delete submission
 submissionRouter.delete("/:id",deleteSubmission);
+
+submissionRouter.patch("/:submissionId",validateRequestBody(updateSubmissionVerdictSchema),updateSubmissionVerdictController);
 
 
 export default submissionRouter;

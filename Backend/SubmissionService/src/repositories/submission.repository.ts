@@ -65,3 +65,21 @@ export const deleteSubmission = async (
     submissionId
   );
 };
+export async function updateSubmissionVerdict(
+    submissionId: string,
+    verdict: ISubmission["verdict"],
+    status: ISubmission["status"]
+) {
+
+    return await Submission.findByIdAndUpdate(
+        submissionId,
+        {
+            verdict,
+            status
+        },
+        {
+            new: true
+        }
+    );
+
+}

@@ -76,6 +76,30 @@ export const submissionFilterSchema = z.object({
     .optional(),
 });
 
+export const updateSubmissionVerdictSchema = z.object({
+    status: z.enum([
+        "PENDING",
+        "QUEUED",
+        "RUNNING",
+        "COMPLETED",
+        "FAILED"
+    ]),
+
+    verdict: z.enum([
+        "PENDING",
+        "ACCEPTED",
+        "WRONG_ANSWER",
+        "TIME_LIMIT_EXCEEDED",
+        "MEMORY_LIMIT_EXCEEDED",
+        "RUNTIME_ERROR",
+        "COMPILATION_ERROR"
+    ])
+});
+
+export const updateSubmissionVerdictParamsSchema = z.object({
+    submissionId: z.string().min(1)
+});
+
 
 export type CreateSubmissionDto = z.infer<
   typeof createSubmissionSchema

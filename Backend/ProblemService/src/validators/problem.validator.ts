@@ -5,6 +5,12 @@ const testcaseSchema = z.object({
   output: z.string().min(1, "Output is required"),
 });
 
+const exampleSchema = z.object({
+  input: z.string().min(1, "Example input is required"),
+  output: z.string().min(1, "Example output is required"),
+  explanation: z.string().optional(),
+});
+
 export const createProblemSchema = z.object({
   title: z
     .string()
@@ -18,11 +24,29 @@ export const createProblemSchema = z.object({
 
   difficulty: z.enum(["easy", "medium", "hard"]),
 
-  editorial: z.string().optional(),
+  tags: z
+    .array(z.string().trim().min(1))
+    .default([]),
 
-  testcases: z
+  constraints: z
+    .array(z.string().trim().min(1))
+    .default([]),
+
+  examples: z
+    .array(exampleSchema)
+    .default([]),
+
+  visibleTestcases: z
     .array(testcaseSchema)
-    .min(1, "At least one testcase is required"),
+    .min(1, "At least one visible testcase is required"),
+
+  hiddenTestcases: z
+    .array(testcaseSchema)
+    .min(1, "At least one hidden testcase is required"),
+
+  editorial: z
+    .string()
+    .optional(),
 });
 
 export const updateProblemSchema =
