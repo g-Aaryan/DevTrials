@@ -1,76 +1,79 @@
 import mongoose, { Document } from "mongoose";
 
 export interface IUser extends Document {
-  name: string;
-  email: string;
-  password: string;
-  role: "USER" | "ADMIN";
-  isEmailVerified: boolean;
-  createdAt: Date;
-  updatedAt: Date;
+    name: string;
+    email: string;
+    password?: string;
+    role: "USER" | "ADMIN";
+    isEmailVerified: boolean;
+    googleId?: string;
+    avatar?: string;
+    loginAttempts: number;
+    lockUntil?: number;
+    createdAt: Date;
+    updatedAt: Date;
 }
 
 const userSchema = new mongoose.Schema<IUser>(
-  {
-    name: {
-      type: String,
-      required: [true, "Name is required"],
-      trim: true,
-      minlength: [2, "Name must be at least 2 characters"],
-      maxlength: [50, "Name must be less than 50 characters"],
+    {
+        name: {
+            type: String,
+            required: true,
+            trim: true
+        },
+        email: {
+            type: String,
+            required: true,
+            unique: true,
+            lowercase: true,
+            trim: true
+        },
+        password: {
+            type: String,
+            required: false
+        },
+        role: {
+            type: String,
+            enum: ["USER", "ADMIN"],
+            default: "USER"
+        },
+        isEmailVerified: {
+            type: Boolean,
+            default: false
+        },
+        googleId: {
+            type: String
+        },
+        avatar: {
+            type: String
+        },
+        loginAttempts: {
+            type: Number,
+            required: true,
+            default: 0
+        },
+        lockUntil: {
+            type: Number
+        },
     },
+    {
+        timestamps: true,
 
-    email: {
-      type: String,
-      required: [true, "Email is required"],
-      unique: true,
-      lowercase: true,
-      trim: true,
-    },
+        toJSON: {
+            transform(_, ret) {
+                ret.id = ret._id;
+                delete ret._id;
+                delete ret.__v;
 
-    password: {
-      type: String,
-      required: [true, "Password is required"],
-      select: false,
-    },
-
-    role: {
-      type: String,
-      enum: {
-        values: ["USER", "ADMIN"],
-        message: "Invalid user role",
-      },
-      default: "USER",
-    },
-
-    isEmailVerified: {
-      type: Boolean,
-      default: false,
-    },
-  },
-  {
-    timestamps: true,
-
-    toJSON: {
-      transform: (_, record) => {
-        delete (record as any).__v;
-        delete (record as any).password;
-
-        record.id = record._id;
-        delete record._id;
-
-        return record;
-      },
-    },
-  }
+                return ret;
+            }
+        }
+    }
 );
 
-userSchema.index(
-  { email: 1 },
-  { unique: true }
-);
+userSchema.index({ email: 1 }, { unique: true });
 
 export const User = mongoose.model<IUser>(
-  "User",
-  userSchema
+    "User",
+    userSchema
 );

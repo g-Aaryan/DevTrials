@@ -1,6 +1,6 @@
 import express from "express";
 import pingRouter from "./ping.router";
-import authRouter from "./auth.routes"
+import authRouter from "./auth.router";
 
 const v1router = express.Router();
 

@@ -1,12 +1,14 @@
 import dotenv from 'dotenv';
 type Serveconfig ={
     PORT:number
-    REDIS_HOST:string
-    REDIS_PORT:number
     DB_URL:string
-    OTP_SECRET:string
+    ACCESS_TOKEN_SECRET:string
+    REFRESH_TOKEN_SECRET:string
     EMAIL_USER:string
     EMAIL_PASSWORD:string
+    GOOGLE_CLIENT_ID:string
+    GOOGLE_CLIENT_SECRET:string
+    GOOGLE_REDIRECT_URI:string
 }
 
 function loadenv(){
@@ -17,11 +19,13 @@ function loadenv(){
 loadenv();
 
 export const serverconfig:Serveconfig={
-    PORT:Number(process.env.PORT)||3001,
-    REDIS_HOST:process.env.REDIS_HOST||"localhost",
-    REDIS_PORT:Number(process.env.REDIS_PORT)||6379,
-    DB_URL:process.env.DB_URL||"mongodb://localhost:27017/lc_auth_userdb",
-    OTP_SECRET:process.env.OTP_SECRET||"default_otp_secret",
+    PORT:Number(process.env.PORT)||3008,
+    DB_URL:process.env.DB_URL||"mongodb://localhost:27017/auth_db",
+    ACCESS_TOKEN_SECRET:process.env.ACCESS_TOKEN_SECRET||"default_access_token_secret",
+    REFRESH_TOKEN_SECRET:process.env.REFRESH_TOKEN_SECRET||"default_refresh_token_secret",
     EMAIL_USER:process.env.EMAIL_USER||"default_email_user",
-    EMAIL_PASSWORD:process.env.EMAIL_PASSWORD||"default_email_password"
+    EMAIL_PASSWORD:process.env.EMAIL_PASSWORD||"default_email_password",
+    GOOGLE_CLIENT_ID:process.env.GOOGLE_CLIENT_ID||"default_google_client_id",
+    GOOGLE_CLIENT_SECRET:process.env.GOOGLE_CLIENT_SECRET||"default_google_client_secret",
+    GOOGLE_REDIRECT_URI:process.env.GOOGLE_REDIRECT_URI||"http://localhost:3008/api/v1/auth/google/callback",
 }

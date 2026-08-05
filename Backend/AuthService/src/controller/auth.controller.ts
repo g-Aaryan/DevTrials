@@ -1,231 +1,231 @@
+/// <reference path="../types/express.d.ts" />
 import { Request, Response, NextFunction } from "express";
+import { loginUser, logoutUser, logoutAllDevices, refreshAccessToken, registerUser, verifyUserEmail, resendVerificationOtp, forgotPassword, resetPassword, getActiveSessions, revokeUserSession, googleLoginService } from "../services/auth.service";
+import { serverconfig } from "../config";
+import { BadRequestError } from "../utils/errors/app.error";
 
-import {
-    registerUser,
-    verifyUserEmail,
-    resendVerificationOtp,
-    loginUser,
-    refreshAccessToken,
-    logoutUser,
-    logoutAllDevices,
-    getMe
-} from "../services/auth.service";
-
-
-const cookieOptions = {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
-    sameSite: "strict" as const,
-    maxAge: 7 * 24 * 60 * 60 * 1000
-};
-
-
-export const register = async (
-    req: Request,
-    res: Response,
-    next: NextFunction
-) => {
-    try {
-        const user = await registerUser(req.body);
-
-        res.status(201).json({
+export async function register( req: Request,res: Response,next: NextFunction) {
+        const response = await registerUser(req.body);
+        return res.status(201).json({
             success: true,
-            message: "User registered successfully. Please verify your email.",
-            data: user
+            message: response.message
         });
-    } catch (error) {
-        next(error);
-    }
-};
-
-
-export const verifyEmail = async (
-    req: Request,
-    res: Response,
-    next: NextFunction
-) => {
-    try {
-        const { userId, otp } = req.body;
-
-        const user = await verifyUserEmail(userId, otp);
-
-        res.status(200).json({
+}
+export async function verifyEmail(req: Request,res: Response,next: NextFunction) {
+        const response =
+            await verifyUserEmail(req.body);
+        return res.status(200).json({
             success: true,
-            message: "Email verified successfully",
-            data: user
+            message: response.message
         });
-    } catch (error) {
-        next(error);
-    }
-};
-
-
-export const resendOtp = async (
-    req: Request,
-    res: Response,
-    next: NextFunction
-) => {
-    try {
-        const { userId } = req.body;
-
-        const result = await resendVerificationOtp(userId);
-
-        res.status(200).json({
-            success: true,
-            message: result.message
-        });
-    } catch (error) {
-        next(error);
-    }
-};
-
-
-export const login = async (
-    req: Request,
-    res: Response,
-    next: NextFunction
-) => {
-    try {
-        const { email, password } = req.body;
-
-        const {
-            user,
-            accessToken,
-            refreshToken,
-            sessionId
-        } = await loginUser(email, password);
-
-        res.cookie(
-            "refreshToken",
-            refreshToken,
-            cookieOptions
+}
+export async function login(req: Request,res: Response,next: NextFunction){
+        const response = await loginUser(
+            req.body,
+            req.ip || "",
+            req.get("user-agent") || ""
         );
 
-        res.cookie(
-            "sessionId",
-            sessionId,
-            cookieOptions
-        );
+        res.cookie("refreshToken", response.refreshToken, {
+            httpOnly: true,
+            secure: process.env.NODE_ENV === "production",
+            sameSite: "strict",
+            maxAge: 7 * 24 * 60 * 60 * 1000
+        });
 
-        res.status(200).json({
+        return res.status(200).json({
             success: true,
             message: "Login successful",
             data: {
-                user,
-                accessToken
+                accessToken: response.accessToken
             }
         });
-    } catch (error) {
-        next(error);
-    }
-};
-
-
-export const refresh = async (
+}
+export async function refreshToken(
     req: Request,
     res: Response,
     next: NextFunction
-) => {
-    try {
-        const { refreshToken, sessionId } = req.cookies;
+) {
+    const refreshToken = req.cookies.refreshToken;
+    const response = await refreshAccessToken(refreshToken);
 
-        if (!refreshToken || !sessionId) {
-            throw new Error("Refresh token or session not found");
+    res.cookie("refreshToken", response.refreshToken, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === "production",
+        sameSite: "strict",
+        maxAge: 7 * 24 * 60 * 60 * 1000
+    });
+
+    return res.status(200).json({
+        success: true,
+        message: "Token refreshed",
+        data: {
+            accessToken: response.accessToken
         }
+    });
+}
 
-        const tokens = await refreshAccessToken(
-            sessionId,
-            refreshToken
-        );
-
-        // Refresh token rotation
-        res.cookie(
-            "refreshToken",
-            tokens.refreshToken,
-            cookieOptions
-        );
-
-        res.status(200).json({
-            success: true,
-            data: {
-                accessToken: tokens.accessToken
-            }
-        });
-    } catch (error) {
-        next(error);
-    }
-};
-
-
-export const logout = async (
+export async function logout(
     req: Request,
     res: Response,
     next: NextFunction
-) => {
-    try {
-        const { sessionId } = req.cookies;
-
-        // userId will come from authentication middleware
-        const userId = req.user.userId;
-
-        await logoutUser(
-            sessionId,
-            userId
-        );
-
-        res.clearCookie("refreshToken", cookieOptions);
-        res.clearCookie("sessionId", cookieOptions);
-
-        res.status(200).json({
-            success: true,
-            message: "Logged out successfully"
-        });
-    } catch (error) {
-        next(error);
+) {
+    const refreshToken = req.cookies.refreshToken;
+    if (refreshToken) {
+        try {
+            await logoutUser(refreshToken);
+        } catch (error) {
+            // Ignore failure, we will clear the cookie anyway
+        }
     }
-};
 
+    res.clearCookie("refreshToken", {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === "production",
+        sameSite: "strict"
+    });
 
-export const logoutAll = async (
+    return res.status(200).json({
+        success: true,
+        message: "Logged out successfully"
+    });
+}
+
+export async function logoutAll(
     req: Request,
     res: Response,
     next: NextFunction
-) => {
-    try {
-        // userId will come from authentication middleware
-        const userId = req.user.userId;
-
-        await logoutAllDevices(userId);
-
-        res.clearCookie("refreshToken", cookieOptions);
-        res.clearCookie("sessionId", cookieOptions);
-
-        res.status(200).json({
-            success: true,
-            message: "Logged out from all devices successfully"
-        });
-    } catch (error) {
-        next(error);
+) {
+    const userId = req.user?.id;
+    if (!userId) {
+        throw new BadRequestError("User not found in token");
     }
-};
 
+    await logoutAllDevices(userId);
 
-export const me = async (
+    res.clearCookie("refreshToken", {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === "production",
+        sameSite: "strict"
+    });
+
+    return res.status(200).json({
+        success: true,
+        message: "Logged out from all devices successfully"
+    });
+}
+
+export async function resendOtp(
     req: Request,
     res: Response,
     next: NextFunction
-) => {
-    try {
-        // userId will come from authentication middleware
-        const userId = req.user.userId;
+) {
+    const response = await resendVerificationOtp(req.body);
+    return res.status(200).json({
+        success: true,
+        message: response.message
+    });
+}
 
-        const user = await getMe(userId);
+export async function forgotPasswordController(
+    req: Request,
+    res: Response,
+    next: NextFunction
+) {
+    const response = await forgotPassword(req.body);
+    return res.status(200).json({
+        success: true,
+        message: response.message
+    });
+}
 
-        res.status(200).json({
-            success: true,
-            data: user
-        });
-    } catch (error) {
-        next(error);
+export async function resetPasswordController(
+    req: Request,
+    res: Response,
+    next: NextFunction
+) {
+    const response = await resetPassword(req.body);
+    return res.status(200).json({
+        success: true,
+        message: response.message
+    });
+}
+
+export async function getSessionsController(
+    req: Request,
+    res: Response,
+    next: NextFunction
+) {
+    const userId = req.user?.id;
+    if (!userId) {
+        throw new BadRequestError("User ID not found in token");
     }
-};
+
+    const sessions = await getActiveSessions(userId);
+    return res.status(200).json({
+        success: true,
+        message: "Active sessions retrieved successfully",
+        data: sessions
+    });
+}
+
+export async function revokeSessionController(
+    req: Request,
+    res: Response,
+    next: NextFunction
+) {
+    const userId = req.user?.id;
+    if (!userId) {
+        throw new BadRequestError("User ID not found in token");
+    }
+
+    const sessionId = req.params.sessionId;
+    await revokeUserSession(userId, sessionId);
+
+    return res.status(200).json({
+        success: true,
+        message: "Session revoked successfully"
+    });
+}
+
+export async function googleLoginRedirect(
+    req: Request,
+    res: Response,
+    next: NextFunction
+) {
+    console.log("Google login redirect request received");
+    const url = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${serverconfig.GOOGLE_CLIENT_ID}&redirect_uri=${serverconfig.GOOGLE_REDIRECT_URI}&response_type=code&scope=profile%20email`;
+    return res.redirect(url);
+}
+
+export async function googleLoginCallback(
+    req: Request,
+    res: Response,
+    next: NextFunction
+) {
+    const code = req.query.code as string;
+    if (!code) {
+        throw new BadRequestError("OAuth code is missing");
+    }
+
+    const response = await googleLoginService(
+        code,
+        req.ip || "",
+        req.get("user-agent") || ""
+    );
+
+    res.cookie("refreshToken", response.refreshToken, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === "production",
+        sameSite: "strict",
+        maxAge: 7 * 24 * 60 * 60 * 1000
+    });
+
+    return res.status(200).json({
+        success: true,
+        message: "Google login successful",
+        data: {
+            accessToken: response.accessToken
+        }
+    });
+}

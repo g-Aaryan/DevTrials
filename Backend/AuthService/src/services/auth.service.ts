@@ -1,69 +1,270 @@
-import {RegisterUserData} from "../dto/user.dto";
-import { createUser, findUserByEmail, findUserByEmailWithPassword, findUserById, verifyuserEmail } from "../repositories/user.repository";
-import { generateOtp, hashOtp, verifyOtp } from "../utils/otp.utils";
-import { hashPassword, comparePassword } from "../utils/password.utils";
-import { deleteOtp, getOtp, storeOtp } from "../repositories/otp.repository";
-import { sendVerificationOtp } from "./email.service";
-import { generateAccessToken, generateRefreshToken, hashRefreshToken } from "../utils/token.utils";
-import { createSession, deleteAllUserSessions, deleteSession, getSession, updateSessionRefreshToken } from "../repositories/session.repository";
+import { RegisterDto, VerifyEmailDto, LoginDto, ResendOtpDto, ForgotPasswordDto, ResetPasswordDto } from "../validators/user.validator";
+import { findUserByEmail,createUser, verifyUser, createSession, findSessionByRefreshToken,updateSessionRefreshToken, revokeSession, revokeAllSessions, updateUserPassword, findActiveSessionsByUserId, findSessionById, findUserByGoogleId, findSessionByUsedRefreshToken } from "../repositories/auth.repository";
+import { serverconfig } from "../config";
+import { BadRequestError } from "../utils/errors/app.error";
+import { comparePassword, hashPassword } from "../utils/password.utils";
+import { compareOtp, generateOtp, hashOtp } from "../utils/otp.utils";
+import { deleteOtp, getOtp, incrementOtpAttempts, storeOtp } from "../utils/redis.utils";
+import { sendForgotPasswordOtp, sendVerificationOtp } from "../utils/mail.utils";
+import { generateAccessToken, generateRefreshToken, verifyRefreshToken } from "../utils/jwt.utils";
+import { hashToken } from "../utils/token.utlis";
 
 
-export const registerUser = async (userData: RegisterUserData) => {
-    const existingUser = await findUserByEmail(userData.email);
-    if (existingUser) {
-        throw new Error("User already exists");
+export async function registerUser(data:RegisterDto){
+    const existingUser = await findUserByEmail(data.email);
+
+    if(existingUser){
+        if (existingUser.isEmailVerified) {throw new BadRequestError("User already exists")}
+
+        const otp = generateOtp();
+        const otpHash = hashOtp(otp);
+        await storeOtp(existingUser.id, otpHash);
+
+        await sendVerificationOtp(
+        existingUser.email,
+        otp
+        );
+        return {
+        message: "Verification OTP sent again."
+        };
     }
 
-    const hashedPassword = await hashPassword(userData.password)
+    const hashedPassword = await hashPassword(data.password);
 
     const user = await createUser({
-        name: userData.name,
-        email: userData.email,
+        ...data,
         password: hashedPassword,
-        role: "USER",
-        isEmailVerified: false,
+        isEmailVerified: false
     });
 
     const otp = generateOtp();
+    const otpHash = hashOtp(otp);
 
-    const hashedOtp = hashOtp(otp);
+    await storeOtp(user.id, otpHash);
 
-    await storeOtp(user.id,hashedOtp);
+    await sendVerificationOtp(user.email, otp);
 
-    await sendVerificationOtp(user.email,otp);
-
-    return user;
+    return {
+        message:
+            "User registered successfully. Please verify your email."
+    };
 }
 
-export const verifyUserEmail = async (userId:string,otp:string)=>{
-    const user = await findUserById(userId);
-    if (!user) {throw new Error("User not found")}
-
-    if (user.isEmailVerified) {throw new Error("Email is already verified")}
-
-    const storedOtpHash = await getOtp(userId);
-    if (!storedOtpHash) {throw new Error("OTP expired or not found")}
-
-    const isOtpValid = verifyOtp(otp,storedOtpHash);
-    if (!isOtpValid) {throw new Error("Invalid OTP")}
-
-    const verifiedUser = await verifyuserEmail(userId);
-
-    await deleteOtp(userId);
-
-    return verifiedUser;
+export async function verifyUserEmail(data: VerifyEmailDto) {
+    const user = await findUserByEmail(data.email);
+    if (!user) {
+        throw new BadRequestError("User not found");
+    }
+    if (user.isEmailVerified) {
+        throw new BadRequestError(
+            "Email already verified"
+        );
+    }
+    const otpData = await getOtp(user.id);
+    if (!otpData) {
+        throw new BadRequestError(
+            "OTP expired"
+        );
+    }
+    if (otpData.attempts >= 5) {
+        throw new BadRequestError(
+            "Too many attempts"
+        );
+    }
+    const isValid = compareOtp(
+        data.otp,
+        otpData.otpHash
+    );
+    if (!isValid) {
+        await incrementOtpAttempts(
+            user.id
+        );
+        throw new BadRequestError(
+            "Invalid OTP"
+        );
+    }
+    await deleteOtp(user.id);
+    await verifyUser(user.id);
+    return {
+        message:
+            "Email verified successfully"
+    };
 }
 
-export const resendVerificationOtp = async (userId: string) => {
-    const user = await findUserById(userId);
-    if (!user) { throw new Error("User not found"); }
+export async function loginUser(
+    data: LoginDto,
+    ipAddress: string,
+    userAgent: string
+) {
+    const user = await findUserByEmail(data.email);
+    if (!user)
+        throw new BadRequestError("Invalid credentials");
+    if (!user.isEmailVerified)
+        throw new BadRequestError("Email not verified");
 
-    if (user.isEmailVerified) { throw new Error("Email is already verified"); }
+    if (user.lockUntil && user.lockUntil > Date.now()) {
+        throw new BadRequestError("Account is temporarily locked. Try again later.");
+    }
+
+    if (!user.password) {
+        user.loginAttempts += 1;
+        if (user.loginAttempts >= 5) {
+            user.lockUntil = Date.now() + 15 * 60 * 1000;
+        }
+        await user.save();
+        throw new BadRequestError("Invalid credentials");
+    }
+
+    const isPasswordCorrect =
+        await comparePassword(
+            data.password,
+            user.password
+        );
+
+    if (!isPasswordCorrect) {
+        user.loginAttempts += 1;
+        if (user.loginAttempts >= 5) {
+            user.lockUntil = Date.now() + 15 * 60 * 1000;
+        }
+        await user.save();
+        throw new BadRequestError("Invalid credentials");
+    }
+
+    if (user.loginAttempts > 0 || user.lockUntil) {
+        user.loginAttempts = 0;
+        user.lockUntil = undefined;
+        await user.save();
+    }
+    
+    const payload = {
+        id: user.id,
+        email: user.email,
+        role: user.role
+    };
+
+    const accessToken =
+        generateAccessToken(payload);
+
+    const refreshToken =
+        generateRefreshToken(payload);
+
+    const hashedRefreshToken =hashToken(refreshToken);
+
+    const session = await createSession({
+        userId: user.id,
+        refreshToken: hashedRefreshToken,
+        ipAddress,
+        userAgent
+    });
+
+    return {
+        accessToken,
+        refreshToken,
+        session
+    };
+}
+export async function refreshAccessToken(refreshToken?: string){
+    if (!refreshToken) {
+        throw new BadRequestError("Refresh token is missing");
+    }
+
+    let payload: any;
+    try {
+        payload = verifyRefreshToken(refreshToken);
+    } catch (err) {
+        throw new BadRequestError("Invalid refresh token");
+    }
+    if (!payload){
+        throw new BadRequestError(
+            "Invalid refresh token"
+        )
+    }
+    const hashedToken =hashToken(refreshToken);
+
+    const session =
+        await findSessionByRefreshToken(
+            hashedToken
+        );
+
+    if (!session) {
+        const replayedSession = await findSessionByUsedRefreshToken(hashedToken);
+        if (replayedSession) {
+            await revokeAllSessions(replayedSession.userId.toString());
+            throw new BadRequestError("Token replay detected. All sessions revoked for security.");
+        }
+        throw new BadRequestError(
+            "Session not found"
+        );
+    }
+
+    const newPayload = {
+        id: payload.id,
+        email: payload.email,
+        role: payload.role
+    };
+
+    const accessToken =
+        generateAccessToken(newPayload);
+
+    const newRefreshToken =
+        generateRefreshToken(newPayload);
+
+    const hashedNewRefreshToken =
+        hashToken(newRefreshToken);
+
+    await updateSessionRefreshToken(
+        session.id,
+        hashedNewRefreshToken,
+        hashedToken
+    );
+
+    return {
+        accessToken,
+        refreshToken: newRefreshToken
+    };
+}
+
+export async function logoutUser(refreshToken?: string) {
+    if (!refreshToken) {
+        throw new BadRequestError("Refresh token is missing");
+    }
+
+    let payload: any;
+    try {
+        payload = verifyRefreshToken(refreshToken);
+    } catch (err) {
+        throw new BadRequestError("Invalid refresh token");
+    }
+    if (!payload) {
+        throw new BadRequestError("Invalid refresh token");
+    }
+
+    const hashedToken = hashToken(refreshToken);
+    const session = await findSessionByRefreshToken(hashedToken);
+    if (!session) {
+        throw new BadRequestError("Session not found");
+    }
+
+    await revokeSession(session.id);
+}
+
+export async function logoutAllDevices(userId: string) {
+    await revokeAllSessions(userId);
+}
+
+export async function resendVerificationOtp(data: ResendOtpDto) {
+    const user = await findUserByEmail(data.email);
+    if (!user) {
+        throw new BadRequestError("User not found");
+    }
+    if (user.isEmailVerified) {
+        throw new BadRequestError("Email already verified");
+    }
 
     const otp = generateOtp();
-    const hashedOtp = hashOtp(otp);
+    const otpHash = hashOtp(otp);
+    await storeOtp(user.id, otpHash);
 
-    await storeOtp(userId, hashedOtp);
     await sendVerificationOtp(user.email, otp);
 
     return {
@@ -71,105 +272,159 @@ export const resendVerificationOtp = async (userId: string) => {
     };
 }
 
-export const loginUser = async (email: string,password: string) => {
-    const user = await findUserByEmailWithPassword(email);
-    if (!user) { throw new Error("Invalid email or password"); }
+export async function forgotPassword(data: ForgotPasswordDto) {
+    const user = await findUserByEmail(data.email);
+    if (!user) {
+        throw new BadRequestError("User not found");
+    }
 
-    if (!user.isEmailVerified) { throw new Error("Please verify your email first"); }
+    const otp = generateOtp();
+    const otpHash = hashOtp(otp);
+    await storeOtp(user.id, otpHash);
 
-    const isPasswordValid = await comparePassword(password, user.password);
-    if (!isPasswordValid) { throw new Error("Invalid email or password"); }
-
-    const accessToken = generateAccessToken(
-        user._id.toString(),
-        user.role
-    );
-
-    const refreshToken = generateRefreshToken();
-    const refreshTokenHash = hashRefreshToken(refreshToken);
-
-    const sessionId = crypto.randomUUID();
-
-    await createSession(
-        sessionId,
-        user._id.toString(),
-        refreshTokenHash
-    );
+    await sendForgotPasswordOtp(user.email, otp);
 
     return {
-        user,
+        message: "Password reset OTP sent successfully"
+    };
+}
+
+export async function resetPassword(data: ResetPasswordDto) {
+    const user = await findUserByEmail(data.email);
+    if (!user) {
+        throw new BadRequestError("User not found");
+    }
+
+    const otpData = await getOtp(user.id);
+    if (!otpData) {
+        throw new BadRequestError("OTP expired");
+    }
+
+    if (otpData.attempts >= 5) {
+        throw new BadRequestError("Too many attempts");
+    }
+
+    const isValid = compareOtp(data.otp, otpData.otpHash);
+    if (!isValid) {
+        await incrementOtpAttempts(user.id);
+        throw new BadRequestError("Invalid OTP");
+    }
+
+    const hashedPassword = await hashPassword(data.password);
+    await updateUserPassword(user.id, hashedPassword);
+
+    await deleteOtp(user.id);
+    await revokeAllSessions(user.id);
+
+    return {
+        message: "Password reset successfully"
+    };
+}
+
+export async function getActiveSessions(userId: string) {
+    return await findActiveSessionsByUserId(userId);
+}
+
+export async function revokeUserSession(userId: string, sessionId: string) {
+    const session = await findSessionById(sessionId);
+    if (!session) {
+        throw new BadRequestError("Session not found");
+    }
+
+    if (session.userId.toString() !== userId) {
+        throw new BadRequestError("Unauthorized to revoke this session");
+    }
+
+    await revokeSession(sessionId);
+}
+
+export async function googleLoginService(code: string, ipAddress: string, userAgent: string) {
+    // 1. Exchange code for Google access token
+    const tokenResponse = await fetch("https://oauth2.googleapis.com/token", {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/x-www-form-urlencoded"
+        },
+        body: new URLSearchParams({
+            code,
+            client_id: serverconfig.GOOGLE_CLIENT_ID,
+            client_secret: serverconfig.GOOGLE_CLIENT_SECRET,
+            redirect_uri: serverconfig.GOOGLE_REDIRECT_URI,
+            grant_type: "authorization_code"
+        }).toString()
+    });
+
+    if (!tokenResponse.ok) {
+        const errorText = await tokenResponse.text();
+        throw new BadRequestError(`Failed to exchange Google OAuth code: ${errorText}`);
+    }
+
+    const tokenData = await tokenResponse.json() as { access_token: string };
+
+    // 2. Fetch user profile info from Google
+    const profileResponse = await fetch("https://www.googleapis.com/oauth2/v2/userinfo", {
+        headers: {
+            Authorization: `Bearer ${tokenData.access_token}`
+        }
+    });
+
+    if (!profileResponse.ok) {
+        throw new BadRequestError("Failed to retrieve Google user profile info");
+    }
+
+    const profileData = await profileResponse.json() as {
+        id: string;
+        email: string;
+        name: string;
+        picture?: string;
+    };
+
+    const { id, email, name, picture } = profileData;
+
+    // 3. Find User by googleId
+    let user = await findUserByGoogleId(id);
+
+    if (!user) {
+        // Find User by email
+        user = await findUserByEmail(email);
+
+        if (user) {
+            // Link account if email matches
+            user.googleId = id;
+            if (picture) user.avatar = picture;
+            await user.save();
+        } else {
+            // Create user
+            user = await createUser({
+                name,
+                email,
+                googleId: id,
+                avatar: picture,
+                isEmailVerified: true // Google pre-verified
+            });
+        }
+    }
+
+    // 4. Generate tokens & create Session
+    const payload = {
+        id: user.id,
+        email: user.email,
+        role: user.role
+    };
+
+    const accessToken = generateAccessToken(payload);
+    const refreshToken = generateRefreshToken(payload);
+    const hashedRefreshToken = hashToken(refreshToken);
+
+    await createSession({
+        userId: user.id,
+        refreshToken: hashedRefreshToken,
+        ipAddress,
+        userAgent
+    });
+
+    return {
         accessToken,
-        refreshToken,
-        sessionId
+        refreshToken
     };
-}
-
-export const refreshAccessToken = async (
-    sessionId: string,
-    refreshToken: string
-) => {
-    const session = await getSession(sessionId);
-    if (!session) { throw new Error("Session expired or invalid"); }
-
-    const refreshTokenHash = hashRefreshToken(refreshToken);
-
-    if (refreshTokenHash !== session.refreshTokenHash) {
-        throw new Error("Invalid refresh token");
-    }
-
-    const user = await findUserById(session.userId);
-    if (!user) { throw new Error("User not found"); }
-
-    const newAccessToken = generateAccessToken(
-        user._id.toString(),
-        user.role
-    );
-
-    const newRefreshToken = generateRefreshToken();
-    const newRefreshTokenHash = hashRefreshToken(newRefreshToken);
-
-    await updateSessionRefreshToken(
-        sessionId,
-        newRefreshTokenHash
-    );
-
-    return {
-        accessToken: newAccessToken,
-        refreshToken: newRefreshToken
-    };
-}
-
-export const logoutUser = async (
-    sessionId: string,
-    userId: string
-) => {
-    const session = await getSession(sessionId);
-    if (!session) { throw new Error("Session not found"); }
-
-    if (session.userId !== userId) {
-        throw new Error("Invalid session");
-    }
-
-    await deleteSession(sessionId, userId);
-
-    return {
-        message: "Logged out successfully"
-    };
-}
-
-export const logoutAllDevices = async (
-    userId: string
-) => {
-    await deleteAllUserSessions(userId);
-
-    return {
-        message: "Logged out from all devices successfully"
-    };
-}
-
-export const getMe = async (userId: string) => {
-    const user = await findUserById(userId);
-    if (!user) { throw new Error("User not found"); }
-
-    return user;
 }

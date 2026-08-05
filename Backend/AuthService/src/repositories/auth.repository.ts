@@ -1,0 +1,106 @@
+import { Session } from "../models/session.model";
+import { IUser, User } from "../models/user.model";
+
+export async function createUser(data: Partial<IUser>){
+    return await User.create(data);
+}
+
+export async function findUserByEmail(email: string) {
+    return await User.findOne({ email });
+}
+
+export async function verifyUser(userId: string){
+    return await User.findByIdAndUpdate(
+        userId,
+        {
+            isEmailVerified: true
+        },
+        {
+            new: true
+        }
+    );
+}
+export async function createSession(data: {
+    userId: string;
+    refreshToken: string;
+    ipAddress: string;
+    userAgent: string;
+}) {
+    return await Session.create(data);
+}
+export async function findSessionByRefreshToken(
+    refreshToken: string
+){
+    return await Session.findOne({
+        refreshToken,
+        isRevoked: false
+    });
+}
+export async function updateSessionRefreshToken(
+    sessionId: string,
+    newRefreshToken: string,
+    oldRefreshToken: string
+) {
+    return await Session.findByIdAndUpdate(
+        sessionId,
+        {
+            refreshToken: newRefreshToken,
+            $push: { usedRefreshTokens: oldRefreshToken }
+        },
+        {
+            new: true
+        }
+    );
+}
+export async function revokeSession(
+    sessionId: string
+) {
+    return await Session.findByIdAndUpdate(
+        sessionId,
+        {
+            isRevoked: true
+        }
+    );
+}
+export async function revokeAllSessions(userId: string) {
+    return await Session.updateMany(
+        {
+            userId,
+            isRevoked: false
+        },
+        {
+            isRevoked: true
+        }
+    );
+}
+
+export async function updateUserPassword(userId: string, passwordHash: string) {
+    return await User.findByIdAndUpdate(
+        userId,
+        {
+            password: passwordHash
+        },
+        {
+            new: true
+        }
+    );
+}
+
+export async function findActiveSessionsByUserId(userId: string) {
+    return await Session.find({
+        userId,
+        isRevoked: false
+    });
+}
+
+export async function findSessionById(sessionId: string) {
+    return await Session.findById(sessionId);
+}
+
+export async function findUserByGoogleId(googleId: string) {
+    return await User.findOne({ googleId });
+}
+
+export async function findSessionByUsedRefreshToken(hashedToken: string) {
+    return await Session.findOne({ usedRefreshTokens: hashedToken });
+}
