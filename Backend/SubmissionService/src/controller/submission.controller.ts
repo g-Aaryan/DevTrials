@@ -4,6 +4,7 @@ import { FilterQuery } from "mongoose";
 import { ISubmission } from "../models/submission.model";
 import logger from "../config/logger.config";
 import { updateVerdict } from "../services/submission.service";
+import { UnauthorizedError, ForbiddenError } from "../utils/errors/app.error";
 
 export const createSubmission = async (req: Request,res: Response,next: NextFunction) => {
   try {
@@ -25,9 +26,33 @@ export const getSubmissionById = async (req: Request,res: Response,next: NextFun
     const submission =
       await submissionService.getSubmissionById(id);
 
+    if (!req.user) {
+      throw new UnauthorizedError("Unauthorized");
+    }
+
+    if (req.user.role !== "ADMIN" && submission.userId !== req.user.id) {
+      throw new ForbiddenError("Forbidden: Access is denied");
+    }
+
     res.status(200).json({
       success: true,
       data: submission,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const getMySubmissions = async (req: Request,res: Response,next: NextFunction) => {
+  try {
+    if (!req.user) {
+      throw new UnauthorizedError("Unauthorized");
+    }
+    const submissions =
+      await submissionService.getSubmissionsByUser(req.user.id);
+    res.status(200).json({
+      success: true,
+      data: submissions,
     });
   } catch (error) {
     next(error);
@@ -51,6 +76,12 @@ export const getAllSubmissions = async (req: Request,res: Response,next: NextFun
 export const getSubmissionsByUser = async (req: Request,res: Response,next: NextFunction) => {
   try {
     const { userId } = req.params;
+    if (!req.user) {
+      throw new UnauthorizedError("Unauthorized");
+    }
+    if (req.user.role !== "ADMIN" && req.user.id !== userId) {
+      throw new ForbiddenError("Forbidden: Access is denied");
+    }
     const submissions =
       await submissionService.getSubmissionsByUser(userId);
     res.status(200).json({
@@ -66,10 +97,15 @@ export const getSubmissionsByUser = async (req: Request,res: Response,next: Next
 export const getSubmissionsByProblem = async (req: Request,res: Response,next: NextFunction) => {
   try {
     const { problemId } = req.params;
-    const submissions =
-      await submissionService.getSubmissionsByProblem(
-        problemId
-      );
+    if (!req.user) {
+      throw new UnauthorizedError("Unauthorized");
+    }
+    let submissions;
+    if (req.user.role === "ADMIN") {
+      submissions = await submissionService.getSubmissionsByProblem(problemId);
+    } else {
+      submissions = await submissionService.getAllSubmissions({ problemId, userId: req.user.id });
+    }
     res.status(200).json({
       success: true,
       data: submissions,

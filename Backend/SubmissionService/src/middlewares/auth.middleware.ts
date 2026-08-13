@@ -1,0 +1,49 @@
+/// <reference path="../types/express.d.ts" />
+import { Request, Response, NextFunction } from "express";
+import jwt from "jsonwebtoken";
+import { serverconfig } from "../config";
+import { ForbiddenError, UnauthorizedError } from "../utils/errors/app.error";
+
+export const authenticateJWT = (
+    req: Request,
+    res: Response,
+    next: NextFunction
+) => {
+    const authHeader = req.headers.authorization;
+
+    if (!authHeader || !authHeader.startsWith("Bearer ")) {
+        throw new UnauthorizedError("Access token is missing or invalid");
+    }
+
+    const token = authHeader.split(" ")[1];
+
+    try {
+        const payload = jwt.verify(
+            token,
+            serverconfig.ACCESS_TOKEN_SECRET
+        ) as {
+            id: string;
+            email: string;
+            role: string;
+        };
+
+        req.user = payload;
+        next();
+    } catch (error) {
+        throw new UnauthorizedError("Invalid or expired access token");
+    }
+};
+
+export const authorize = (allowedRoles: string[]) => {
+    return (req: Request, res: Response, next: NextFunction) => {
+        if (!req.user) {
+            throw new UnauthorizedError("Unauthorized");
+        }
+
+        if (!allowedRoles.includes(req.user.role)) {
+            throw new ForbiddenError("Forbidden: Access is denied");
+        }
+
+        next();
+    };
+};
