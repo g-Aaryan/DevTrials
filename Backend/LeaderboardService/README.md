@@ -1,20 +1,42 @@
-# Steps to setup the starter project 
+# Leaderboard Service
 
---> Clone the project
+Leaderboard microservice for the DevTrails coding platform.
 
-git clone https://github.com/g-Aaryan/Express-template <project name>
+## Overview
 
---> Move inside the folder
+The Leaderboard Service manages user scores, rankings, and solved-problem tracking using Redis.
 
-cd <project name>
+## Features
 
---> Install all the dependencies
+- Score users based on problem difficulty
+- Prevent duplicate points for the same problem
+- Get user score
+- Get user rank
+- Get global leaderboard
+- Pagination support
+- Redis Sorted Sets for ranking
+- Redis Sets for solved-problem tracking
 
-npm i 
+## Tech Stack
 
---> Define the port number inside .env file 
+- Node.js
+- TypeScript
+- Express.js
+- Redis
+- ioredis
 
---> Run the project 
+## Score System
 
-npm run dev 
+| Difficulty | Points |
+|------------|--------|
+| EASY       | 10     |
+| MEDIUM     | 20     |
+| HARD       | 30     |
 
+## API Endpoints
+
+```text
+POST /leaderboard/score
+GET  /leaderboard
+GET  /leaderboard/:userId
+GET  /leaderboard/:userId/rank
