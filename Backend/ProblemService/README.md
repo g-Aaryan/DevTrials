@@ -1,20 +1,52 @@
-# Steps to setup the starter project 
+# Problem Service
 
---> Clone the project
+Problem management microservice for **DevTrails**, a distributed online coding platform.
 
-git clone https://github.com/g-Aaryan/Express-template <project name>
+The Problem Service is responsible for managing coding problems, their metadata, test cases, and editorial content. It exposes APIs consumed by the frontend and other internal services such as the Submission and Judge services.
 
---> Move inside the folder
+## Responsibilities
 
-cd <project name>
+The Problem Service manages:
 
---> Install all the dependencies
+- Problem creation
+- Problem retrieval
+- Problem updates
+- Problem deletion
+- Problem metadata
+- Difficulty levels
+- Problem tags
+- Test cases
+- Editorial content
+- Markdown processing
+- HTML sanitization
+- Role-based access control
 
-npm i 
+The service owns the problem-related data and other services interact with it through APIs instead of directly accessing its database.
 
---> Define the port number inside .env file 
+## Architecture
 
---> Run the project 
+The service follows a layered architecture:
 
-npm run dev 
-
+```text
+Client / Internal Service
+        │
+        ▼
+   Auth Middleware
+        │
+        ▼
+  Authorization
+        │
+        ▼
+   Zod Validation
+        │
+        ▼
+    Controller
+        │
+        ▼
+     Service
+        │
+        ▼
+   Repository
+        │
+        ▼
+    Database
