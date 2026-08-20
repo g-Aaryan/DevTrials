@@ -1,20 +1,49 @@
-# Steps to setup the starter project 
+# DevTrails — Submission Service
 
---> Clone the project
+The Submission Service is responsible for managing the complete lifecycle of code submissions in the DevTrails platform.
 
-git clone https://github.com/g-Aaryan/Express-template <project name>
+A submission represents an attempt by a user to solve a particular coding problem using a supported programming language.
 
---> Move inside the folder
+The service is responsible for:
 
-cd <project name>
+- Accepting submissions from authenticated users
+- Validating submission data
+- Associating submissions with users and problems
+- Persisting submissions in MongoDB
+- Managing submission status
+- Queuing submissions for evaluation
+- Communicating with the Judge Service
+- Updating submissions with evaluation results
+- Storing execution metrics
+- Providing submission history
+- Enforcing user ownership and administrator access
+- Providing internal APIs for verdict updates
 
---> Install all the dependencies
+---
 
-npm i 
+# 1. Role of Submission Service in DevTrails
 
---> Define the port number inside .env file 
+DevTrails follows a microservice architecture.
 
---> Run the project 
+The major services involved in the coding flow are:
 
-npm run dev 
-
+```text
+                    DevTrails
+                        |
+        +---------------+---------------+
+        |               |               |
+        v               v               v
+   Auth Service    Problem Service   Submission Service
+                                          |
+                                          |
+                                          v
+                                    Judge Service
+                                          |
+                                          v
+                                   Code Execution
+                                          |
+                                          v
+                                      Verdict
+                                          |
+                                          v
+                                  Leaderboard Service
