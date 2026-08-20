@@ -1,14 +1,15 @@
 const bashConfig = ["/bin/bash", "-c"];
 
 export const commands = {
-
     cpp(code: string, input: string) {
+        const codeB64 = Buffer.from(code || "").toString("base64");
+        const inputB64 = Buffer.from(input || "").toString("base64");
 
         const runCommand = `
-            mkdir app &&
+            mkdir -p app &&
             cd app &&
-            echo '${code}' > code.cpp &&
-            echo '${input}' > input.txt &&
+            echo '${codeB64}' | base64 -d > code.cpp &&
+            echo '${inputB64}' | base64 -d > input.txt &&
             g++ code.cpp -o run &&
             ./run < input.txt
         `;
@@ -17,12 +18,14 @@ export const commands = {
     },
 
     python(code: string, input: string) {
+        const codeB64 = Buffer.from(code || "").toString("base64");
+        const inputB64 = Buffer.from(input || "").toString("base64");
 
         const runCommand = `
-            mkdir app &&
+            mkdir -p app &&
             cd app &&
-            echo '${code}' > code.py &&
-            echo '${input}' > input.txt &&
+            echo '${codeB64}' | base64 -d > code.py &&
+            echo '${inputB64}' | base64 -d > input.txt &&
             python3 code.py < input.txt
         `;
 
@@ -30,12 +33,14 @@ export const commands = {
     },
 
     javascript(code: string, input: string) {
+        const codeB64 = Buffer.from(code || "").toString("base64");
+        const inputB64 = Buffer.from(input || "").toString("base64");
 
         const runCommand = `
-            mkdir app &&
+            mkdir -p app &&
             cd app &&
-            echo '${code}' > code.js &&
-            echo '${input}' > input.txt &&
+            echo '${codeB64}' | base64 -d > code.js &&
+            echo '${inputB64}' | base64 -d > input.txt &&
             node code.js < input.txt
         `;
 
@@ -43,17 +48,18 @@ export const commands = {
     },
 
     java(code: string, input: string) {
+        const codeB64 = Buffer.from(code || "").toString("base64");
+        const inputB64 = Buffer.from(input || "").toString("base64");
 
         const runCommand = `
-            mkdir app &&
+            mkdir -p app &&
             cd app &&
-            echo '${code}' > Main.java &&
-            echo '${input}' > input.txt &&
+            echo '${codeB64}' | base64 -d > Main.java &&
+            echo '${inputB64}' | base64 -d > input.txt &&
             javac Main.java &&
             java Main < input.txt
         `;
 
         return [...bashConfig, runCommand];
     }
-
 };

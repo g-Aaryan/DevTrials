@@ -160,7 +160,13 @@ export async function loginUser(
     return {
         accessToken,
         refreshToken,
-        session
+        session,
+        user: {
+            id: user.id,
+            name: user.name,
+            email: user.email,
+            role: user.role
+        }
     };
 }
 export async function refreshAccessToken(refreshToken?: string){
@@ -425,6 +431,12 @@ export async function googleLoginService(code: string, ipAddress: string, userAg
 
     return {
         accessToken,
-        refreshToken
+        refreshToken,
+        user: {
+            id: user.id,
+            name: user.name,
+            email: user.email,
+            role: user.role
+        }
     };
 }

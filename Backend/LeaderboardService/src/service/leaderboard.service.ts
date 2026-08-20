@@ -17,26 +17,30 @@ const POINTS = {
 export const processAcceptedSubmission = async (
     userId: string,
     problemId: string,
-    difficulty: "EASY" | "MEDIUM" | "HARD"
+    difficulty: string
 ) => {
-    console.log("SERVICE HIT");
+    console.log("SERVICE HIT for userId:", userId, "problemId:", problemId, "difficulty:", difficulty);
     const alreadySolved = await hasSolvedProblem(
         userId,
         problemId
     );
 
     if (alreadySolved) {
+        console.log("Problem already solved by user", userId);
         return {
             pointsAwarded: 0,
             alreadySolved: true
         };
     }
 
-    const points = POINTS[difficulty];
+    const diffKey = (difficulty || "EASY").toUpperCase() as keyof typeof POINTS;
+    const points = POINTS[diffKey] || 10;
 
     await incrementScore(userId, points);
 
     await markProblemSolved(userId, problemId);
+
+    console.log(`Successfully awarded ${points} points to user ${userId}`);
 
     return {
         pointsAwarded: points,

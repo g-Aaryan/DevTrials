@@ -37,7 +37,8 @@ export async function login(req: Request,res: Response,next: NextFunction){
             success: true,
             message: "Login successful",
             data: {
-                accessToken: response.accessToken
+                accessToken: response.accessToken,
+                user: response.user
             }
         });
 }
@@ -193,9 +194,14 @@ export async function googleLoginRedirect(
     res: Response,
     next: NextFunction
 ) {
-    console.log("Google login redirect request received");
-    const url = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${serverconfig.GOOGLE_CLIENT_ID}&redirect_uri=${serverconfig.GOOGLE_REDIRECT_URI}&response_type=code&scope=profile%20email`;
-    return res.redirect(url);
+    try {
+        console.log("Google login redirect request received");
+        const url = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${serverconfig.GOOGLE_CLIENT_ID}&redirect_uri=${serverconfig.GOOGLE_REDIRECT_URI}&response_type=code&scope=profile%20email`;
+        return res.redirect(url);
+    } catch (error: any) {
+        console.error("Google redirect error:", error);
+        return res.redirect(`${serverconfig.FRONTEND_URL}/login?error=${encodeURIComponent(error.message || "OAuth initialization failed")}`);
+    }
 }
 
 export async function googleLoginCallback(
@@ -203,29 +209,38 @@ export async function googleLoginCallback(
     res: Response,
     next: NextFunction
 ) {
-    const code = req.query.code as string;
-    if (!code) {
-        throw new BadRequestError("OAuth code is missing");
-    }
+    try {
+        const code = req.query.code as string;
+        const reqError = req.query.error as string;
 
-    const response = await googleLoginService(
-        code,
-        req.ip || "",
-        req.get("user-agent") || ""
-    );
-
-    res.cookie("refreshToken", response.refreshToken, {
-        httpOnly: true,
-        secure: process.env.NODE_ENV === "production",
-        sameSite: "strict",
-        maxAge: 7 * 24 * 60 * 60 * 1000
-    });
-
-    return res.status(200).json({
-        success: true,
-        message: "Google login successful",
-        data: {
-            accessToken: response.accessToken
+        if (reqError) {
+            console.error("Google OAuth callback error parameter:", reqError);
+            return res.redirect(`${serverconfig.FRONTEND_URL}/login?error=${encodeURIComponent("Google login canceled or failed: " + reqError)}`);
         }
-    });
+
+        if (!code) {
+            throw new BadRequestError("OAuth code is missing");
+        }
+
+        const response = await googleLoginService(
+            code,
+            req.ip || "",
+            req.get("user-agent") || ""
+        );
+
+        res.cookie("refreshToken", response.refreshToken, {
+            httpOnly: true,
+            secure: process.env.NODE_ENV === "production",
+            sameSite: "strict",
+            maxAge: 7 * 24 * 60 * 60 * 1000
+        });
+
+        const userParam = encodeURIComponent(JSON.stringify(response.user));
+        const redirectUrl = `${serverconfig.FRONTEND_URL}/auth/callback?token=${response.accessToken}&user=${userParam}`;
+        return res.redirect(redirectUrl);
+    } catch (error: any) {
+        console.error("Google OAuth callback processing error:", error.message || error);
+        const errorMsg = error.message || "Google authentication failed";
+        return res.redirect(`${serverconfig.FRONTEND_URL}/login?error=${encodeURIComponent(errorMsg)}`);
+    }
 }

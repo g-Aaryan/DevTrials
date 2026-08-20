@@ -1,126 +1,91 @@
-# DevTrails Authentication Service
+# DevTrails - AuthService
 
-A robust, enterprise-grade authentication microservice built with **Node.js**, **Express**, **MongoDB**, **Redis**, and **TypeScript**. 
-
-This service implements a hybrid authentication model (stateless JWT access tokens + stateful HttpOnly refresh token sessions) alongside standard security hardening features like Refresh Token Rotation (RTR), Replay Attack detection, account lockouts, dynamic CORS/Helmet middlewares, and Redis-backed rate limiters.
+AuthService handles authentication, user registration, JWT token generation, session management, email verification via OTP, password reset, and Google OAuth 2.0 integration for the DevTrails competitive coding platform.
 
 ---
 
-## 🚀 Key Features
+## 🚀 Overview & Functionality
 
-*   **Secure Hybrid Token Model**: Short-lived Access Tokens (passed via memory/headers for CSRF protection) + Long-lived Refresh Tokens (secured in HttpOnly, Secure, SameSite=Strict cookies to neutralize XSS).
-*   **Refresh Token Rotation (RTR)**: Generates a new access token and rotates the refresh token on every refresh call, keeping sessions secure.
-*   **Session Replay Attack Detection**: Detects reuse of old refresh tokens, immediately revoking **every active session** associated with the compromised user account to mitigate breaches.
-*   **Account Lockout Shield**: Locks accounts for 15 minutes after 5 consecutive failed login attempts to stop brute-force/dictionary attacks.
-*   **Distributed Rate Limiting**: Redis-backed rate limiting configured for core paths (login rate limited to 5 requests/15 mins, OTP requests to 3 requests/15 mins). Includes fail-open checks to guarantee uptime.
-*   **Redis OTP Infrastructure**: Email verification and password resets utilize Redis for fast lookup, automatic TTL expirations, and a 5-attempt submission cap.
-*   **Google OAuth 2.0**: Native Google login redirect and profile callback flows. Handles profile creation and email verification linking.
-*   **Active Session Management**: Enables users to query their active connections (IPs, user-agents, login times) and terminate specific device sessions or logout from all devices simultaneously.
+- **User Registration & Email Verification**: Sends 6-digit OTP codes via Nodemailer to verify user emails.
+- **JWT & Session Management**: Issues 15-minute Access Tokens and 7-day HTTP-Only Refresh Tokens. Stores session metadata (IP address, User Agent, active state) in MongoDB.
+- **Google OAuth 2.0 Integration**: Redirects users to Google OAuth consent, exchanges authorization codes for profile info, creates or links user accounts, and redirects back to the React frontend with tokens.
+- **Rate Limiting**: Uses Redis/in-memory rate limiting to prevent brute-force attacks on login and OTP endpoints.
+- **Role-Based Access Control**: Supports `USER` and `ADMIN` roles.
 
 ---
 
-## 🛠️ Technology Stack
+## 🗄️ Database Schemas (MongoDB / Mongoose)
 
-*   **Runtime & Framework**: Node.js (v18+) & Express (v5.x for native async error handling)
-*   **Language**: TypeScript (v5.x)
-*   **Database**: MongoDB (via Mongoose ODM)
-*   **In-Memory Store**: Redis (via ioredis client)
-*   **Validation**: Zod (schema parser & request body validators)
-*   **Security & Performance**: Helmet, CORS, Gzip Compression, Bcrypt
-*   **Logging & Tracing**: Winston logs with daily file rotation and Correlation trace IDs
+### 1. `User` Schema (`users` collection)
 
----
+```typescript
+interface IUser {
+  name: string;
+  email: string; // unique, lowercased
+  password?: string; // bcrypt hashed (optional for Google OAuth users)
+  role: "USER" | "ADMIN"; // default: "USER"
+  isEmailVerified: boolean; // default: false
+  googleId?: string; // optional OAuth ID
+  avatar?: string; // optional avatar URL
+  loginAttempts: number; // default: 0
+  lockUntil?: number; // lock timestamp
+  createdAt: Date;
+  updatedAt: Date;
+}
+```
 
-## 📁 Directory Structure
+### 2. `Session` Schema (`sessions` collection)
 
-```text
-├── src/
-│   ├── config/              # Server setups, database connections, Redis client, Winston logs
-│   ├── controller/          # HTTP request handlers & cookie controllers
-│   ├── middlewares/         # JWT verifier, RBAC, Redis rate limiters, error handling
-│   ├── models/              # Mongoose user and session schemas
-│   ├── repositories/        # Direct database interaction queries
-│   ├── router/              # API route definitions
-│   ├── services/            # Core business logic, token generation, lockout mechanics
-│   ├── types/               # TypeScript namespace extensions (e.g. req.user typings)
-│   ├── utils/               # Bcrypt helpers, JWT signing, OTP generators, NodeMailer utils
-│   └── server.ts            # Service entry point and middleware pipeline configurations
-├── API_DOCUMENTATION.md     # Narrative technical manual for routes and mechanics
-└── POSTMAN_TEST_PLAN.md     # Phase-by-phase Postman testing guide & test body payloads
+```typescript
+interface ISession {
+  userId: mongoose.Types.ObjectId;
+  refreshToken: string; // hashed token
+  ipAddress: string;
+  userAgent: string;
+  isRevoked: boolean;
+  usedRefreshTokens: string[]; // token replay detection
+  createdAt: Date;
+  updatedAt: Date;
+}
 ```
 
 ---
 
-## ⚙️ Getting Started
+## 📡 API Endpoints Specification
 
-### Prerequisites
+Base Path: `/api/v1/auth`
 
-Ensure you have the following services running locally or accessible in your network:
-1.  **Node.js** (Version 18 or higher)
-2.  **MongoDB** (Local instance or Atlas connection string)
-3.  **Redis** (Port 6379)
+| Method | Endpoint | Access | Description |
+| :--- | :--- | :--- | :--- |
+| `POST` | `/register` | Public | Register new user & dispatch email verification OTP |
+| `POST` | `/verify` | Public | Verify 6-digit email OTP |
+| `POST` | `/login` | Public | Authenticate user email & password, return JWT & set refresh cookie |
+| `POST` | `/refresh` | Public | Rotate refresh token cookie and issue fresh access token |
+| `POST` | `/logout` | Public | Revoke current refresh token and clear cookies |
+| `POST` | `/logout-all` | Auth | Revoke all active sessions across all devices for current user |
+| `POST` | `/resend-otp` | Public | Resend email verification OTP |
+| `POST` | `/forgot-password` | Public | Request password reset OTP via email |
+| `POST` | `/reset-password` | Public | Verify reset OTP and update password |
+| `GET` | `/sessions` | Auth | List all active sessions for current user |
+| `DELETE` | `/sessions/:sessionId` | Auth | Revoke a specific active session |
+| `GET` | `/google` | Public | Redirect user to Google OAuth 2.0 consent page |
+| `GET` | `/google/callback` | Public | OAuth callback: exchanges code, sets cookie, redirects to Frontend |
 
-### Installation
+---
 
-1.  Clone the repository and navigate to the project directory:
-    ```bash
-    cd AuthService
-    ```
-2.  Install all dependencies:
-    ```bash
-    npm install
-    ```
+## ⚙️ Configuration & Environment
 
-### Configuration (`.env`)
-
-Create a `.env` file in the root of the project and specify your configuration parameters:
+Default Port: `3008`
 
 ```env
 PORT=3008
-DB_URL=mongodb://localhost:27017/auth_db
-REDIS_HOST=localhost
-REDIS_PORT=6379
-
-ACCESS_TOKEN_SECRET=your_super_secret_access_token_key_here
-REFRESH_TOKEN_SECRET=your_super_secret_refresh_token_key_here
-
-EMAIL_USER=your_gmail_username@gmail.com
-EMAIL_PASSWORD=your_gmail_app_password
-
-GOOGLE_CLIENT_ID=your_google_oauth_client_id
-GOOGLE_CLIENT_SECRET=your_google_oauth_client_secret
+DB_URL=mongodb+srv://<username>:<password>@cluster0.mongodb.net/auth_db
+ACCESS_TOKEN_SECRET=your_access_token_secret
+REFRESH_TOKEN_SECRET=your_refresh_token_secret
+EMAIL_USER=your_email@gmail.com
+EMAIL_PASSWORD=your_app_password
+GOOGLE_CLIENT_ID=your_google_client_id
+GOOGLE_CLIENT_SECRET=your_google_client_secret
 GOOGLE_REDIRECT_URI=http://localhost:3008/api/v1/auth/google/callback
+FRONTEND_URL=http://localhost:5173
 ```
-
----
-
-## 💻 Script Commands
-
-Run the following commands using npm:
-
-*   **Development Server (Hot-Reloading)**:
-    ```bash
-    npm run dev
-    ```
-*   **Type Checking**:
-    ```bash
-    npx tsc --noEmit
-    ```
-*   **Build Project**:
-    Compiles TypeScript files into JavaScript under the `/dist` output directory.
-    ```bash
-    npm run build
-    ```
-*   **Production Server**:
-    Runs the compiled JavaScript project.
-    ```bash
-    npm start
-    ```
-
----
-
-## 🧪 Testing
-
-The service includes detailed testing guides:
-*   For testing all routes (Auth, Recovery, Sessions, OAuth) and request payloads manually in **Postman**, read the [Postman Test Plan](POSTMAN_TEST_PLAN.md).
-

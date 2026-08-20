@@ -21,12 +21,12 @@ try {
     return response.data;
 
 } catch (error: any) {
-
     console.log("Status:", error.response?.status);
     console.log("Data:", error.response?.data);
     console.log("Message:", error.message);
-
-    throw error;
+    const message = error.response?.data?.message || error.message || 'Submission update failed';
+    const status = error.response?.status || 500;
+    throw new Error(`Submission update failed (${status}): ${message}`);
 }
 
 

@@ -76,12 +76,33 @@ export async function runcode(options:RunCodeOptions){
 }
 
 function processLogs(logs: Buffer | undefined) {
-    if(!logs){
+    if (!logs || logs.length === 0) {
         return "";
     }
-    return logs
-        .toString("utf8")
-        .replace(/\x00/g, "")
-        .replace(/[\x00-\x09\x0B-\x1F\x7F-\x9F]/g, "")
-        .trim();
+
+    let output = "";
+    let offset = 0;
+
+    // Parse Docker multiplexed log stream headers (8 bytes per frame)
+    while (offset < logs.length) {
+        if (offset + 8 > logs.length) {
+            output += logs.slice(offset).toString("utf8");
+            break;
+        }
+
+        const streamType = logs[offset];
+        if (streamType === 1 || streamType === 2) {
+            const frameSize = logs.readUInt32BE(offset + 4);
+            const frameContent = logs.slice(offset + 8, offset + 8 + frameSize).toString("utf8");
+            if (streamType === 1) { // stdout
+                output += frameContent;
+            }
+            offset += 8 + frameSize;
+        } else {
+            output += logs.slice(offset).toString("utf8");
+            break;
+        }
+    }
+
+    return output.trim();
 }

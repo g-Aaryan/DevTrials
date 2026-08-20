@@ -9,6 +9,7 @@ type Serveconfig ={
     GOOGLE_CLIENT_ID:string
     GOOGLE_CLIENT_SECRET:string
     GOOGLE_REDIRECT_URI:string
+    FRONTEND_URL:string
 }
 
 function loadenv(){
@@ -28,4 +29,5 @@ export const serverconfig:Serveconfig={
     GOOGLE_CLIENT_ID:process.env.GOOGLE_CLIENT_ID||"default_google_client_id",
     GOOGLE_CLIENT_SECRET:process.env.GOOGLE_CLIENT_SECRET||"default_google_client_secret",
     GOOGLE_REDIRECT_URI:process.env.GOOGLE_REDIRECT_URI||"http://localhost:3008/api/v1/auth/google/callback",
+    FRONTEND_URL:process.env.FRONTEND_URL||"http://localhost:5173",
 }

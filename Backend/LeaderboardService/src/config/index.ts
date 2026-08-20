@@ -13,7 +13,7 @@ function loadenv(){
 loadenv();
 
 export const serverconfig:Serveconfig={
-    PORT:Number(process.env.PORT)||3001,
+    PORT:Number(process.env.PORT)||3010,
     REDIS_PORT:Number(process.env.REDIS_PORT)||6379,
     REDIS_HOST:process.env.REDIS_HOST||"localhost"
 }

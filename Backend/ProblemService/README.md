@@ -1,52 +1,66 @@
-# Problem Service
+# DevTrails - ProblemService
 
-Problem management microservice for **DevTrails**, a distributed online coding platform.
+ProblemService manages problem creation, listing, searching, editing, testcase definitions, and solution editorials for the DevTrails platform.
 
-The Problem Service is responsible for managing coding problems, their metadata, test cases, and editorial content. It exposes APIs consumed by the frontend and other internal services such as the Submission and Judge services.
+---
 
-## Responsibilities
+## 🚀 Overview & Functionality
 
-The Problem Service manages:
+- **Problem Catalog Management**: Stores coding problems with title, detailed markdown description, difficulty rating (`easy`, `medium`, `hard`), topic tags, and constraints.
+- **Testcase Management**: Stores both **visible sample testcases** (shown to users in the problem description) and **hidden testcases** (used exclusively by `JudgeService` for evaluating submissions).
+- **Sanitization**: Sanitizes markdown descriptions to prevent XSS.
+- **Admin Authoring**: Admin endpoints allow adding, updating, and deleting problems.
 
-- Problem creation
-- Problem retrieval
-- Problem updates
-- Problem deletion
-- Problem metadata
-- Difficulty levels
-- Problem tags
-- Test cases
-- Editorial content
-- Markdown processing
-- HTML sanitization
-- Role-based access control
+---
 
-The service owns the problem-related data and other services interact with it through APIs instead of directly accessing its database.
+## 🗄️ Database Schemas (MongoDB / Mongoose)
 
-## Architecture
+### `Problem` Schema (`problems` collection)
 
-The service follows a layered architecture:
+```typescript
+interface ITestCase {
+  input: string; // Stdin passed to solution (e.g. "[2,7,11,15]\n9")
+  output: string; // Expected stdout output (e.g. "[0,1]")
+  explanation?: string;
+}
 
-```text
-Client / Internal Service
-        │
-        ▼
-   Auth Middleware
-        │
-        ▼
-  Authorization
-        │
-        ▼
-   Zod Validation
-        │
-        ▼
-    Controller
-        │
-        ▼
-     Service
-        │
-        ▼
-   Repository
-        │
-        ▼
-    Database
+interface IProblem {
+  title: string; // e.g. "Two Sum"
+  description: string; // Full problem statement
+  difficulty: "easy" | "medium" | "hard";
+  tags: string[]; // e.g. ["Array", "Hashing"]
+  constraints: string[]; // e.g. ["2 <= nums.length <= 100000"]
+  examples: ITestCase[]; // Sample examples shown on UI
+  visibleTestcases: ITestCase[];
+  hiddenTestcases: ITestCase[]; // Secret testcases evaluated by sandbox
+  editorial?: string; // Solution walkthrough
+  createdAt: Date;
+  updatedAt: Date;
+}
+```
+
+---
+
+## 📡 API Endpoints Specification
+
+Base Path: `/api/v1/problem`
+
+| Method | Endpoint | Access | Description |
+| :--- | :--- | :--- | :--- |
+| `GET` | `/` | Public | List all problems (supports filter by `difficulty`, `tags`, or title `search`) |
+| `GET` | `/:id` | Public | Get detailed problem by ID (includes description, constraints, examples, & visible testcases) |
+| `POST` | `/` | Admin | Create a new coding problem with visible & hidden testcases |
+| `PUT` | `/:id` | Admin | Update an existing problem statement or testcases |
+| `DELETE` | `/:id` | Admin | Delete a problem by ID |
+
+---
+
+## ⚙️ Configuration & Environment
+
+Default Port: `3000`
+
+```env
+PORT=3000
+DB_URL=mongodb+srv://<username>:<password>@cluster0.mongodb.net/lc_problem_db
+ACCESS_TOKEN_SECRET=your_access_token_secret
+```

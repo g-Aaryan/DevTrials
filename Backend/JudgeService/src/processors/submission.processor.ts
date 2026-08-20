@@ -24,7 +24,7 @@ export async function processSubmission(job: Job) {
             code: job.data.sourceCode,
             language: job.data.language,
             input: testcase.input,
-            timeout: 2000,
+            timeout: 10000,
             imageName: getImageName(job.data.language)
         });
 
@@ -65,9 +65,11 @@ export async function processSubmission(job: Job) {
     console.log(testcaseResults);
     const finalVerdict = generateFinalVerdict(testcaseResults);
     console.log(`Updating submission ${job.data.submissionId} with verdict ${finalVerdict}`);
-    await updateSubmission(job.data.submissionId,"COMPLETED",finalVerdict);
+    const updatedSubmission = await updateSubmission(job.data.submissionId, "COMPLETED", finalVerdict);
     if (finalVerdict === "ACCEPTED") {
-        await updateLeaderboard(job.data.userId, job.data.problemId, job.data.difficulty);
+        const userId = updatedSubmission.data.userId;
+        const difficulty = problem.difficulty;
+        await updateLeaderboard(userId, job.data.problemId, difficulty);
     }
 
     logger.info(`Submission ${job.data.submissionId} updated successfully`);
