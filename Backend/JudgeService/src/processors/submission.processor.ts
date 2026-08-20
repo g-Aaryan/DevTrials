@@ -1,6 +1,7 @@
 import { Job } from "bullmq";
 import logger from "../config/logger.config";
-import { getProblemById } from "../clients/problem.client";
+import { getProblemById, } from "../clients/problem.client";
+import { updateLeaderboard } from "../clients/leaderboard.client";
 import { runcode } from "../utils/containers/codeRunner";
 import { getImageName } from "../utils/getImage";
 import { compareOutput } from "../utils/comparator";
@@ -65,6 +66,9 @@ export async function processSubmission(job: Job) {
     const finalVerdict = generateFinalVerdict(testcaseResults);
     console.log(`Updating submission ${job.data.submissionId} with verdict ${finalVerdict}`);
     await updateSubmission(job.data.submissionId,"COMPLETED",finalVerdict);
+    if (finalVerdict === "ACCEPTED") {
+        await updateLeaderboard(job.data.userId, job.data.problemId, job.data.difficulty);
+    }
 
     logger.info(`Submission ${job.data.submissionId} updated successfully`);
 
